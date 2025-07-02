@@ -1,0 +1,143 @@
+package ui
+
+import (
+	"github/com/vybraan/snare/components/button"
+	"github/com/vybraan/snare/components/form"
+	"github/com/vybraan/snare/components/input"
+	"github/com/vybraan/snare/components/progress"
+	"github/com/vybraan/snare/ui/layouts"
+)
+
+// This is a simplified example structure. You would split this into partial templates and component files in a real project.
+templ FileManager() {
+	@layouts.Base() {
+		<div class="min-h-screen w-full font-sans p-8">
+			<div class="max-w-5xl mx-auto border border-border rounded-lg shadow-lg p-6">
+				<div class="flex justify-between items-center mb-6">
+					<h1 class="text-3xl font-bold">File Manager</h1>
+					@button.Button(button.Props{HxPost: "/logout", HxTarget: "body", HxSwap: "innerHTML", Variant: "outline"}) {
+						Logout 
+					}
+				</div>
+				<!-- Search and Sort -->
+				<div class="flex items-center gap-4 mb-6">
+					<input type="text" id="searchInput" placeholder="Search files..." class="input input-bordered w-full max-w-sm" hx-get="/files" hx-target="#files" hx-trigger="keyup changed delay:300ms" hx-include="#searchInput"/>
+					<select class="select select-bordered" id="sortSelect" hx-get="/files" hx-target="#files" hx-trigger="change" hx-include="#sortSelect">
+						<option value="name">Sort by Name</option>
+						<option value="size">Sort by Size</option>
+						<option value="date">Sort by Date</option>
+					</select>
+				</div>
+				<!-- Drag & Drop Upload -->
+				<div id="dropzone" class="w-full p-6 border-2 border-dashed border-gray-400 rounded-lg text-center cursor-pointer mb-6">
+					<p>Drag & Drop files here or click to select</p>
+					<input type="file" id="fileInput" name="file" class="hidden" multiple/>
+				</div>
+				<!-- Upload Form with Progress -->
+				<form id="uploadForm" onsubmit="UploadFile(event)" class="flex items-center gap-4 mb-4">
+					@form.Item() {
+						@input.Input(input.Props{ID: "fileSelector", Name: "file", Type: input.TypeFile})
+					}
+					@button.Button(button.Props{Type: button.TypeSubmit}) {
+						Upload 
+					}
+				</form>
+				<div id="progressContainer" class="w-full max-w-xl mb-6 hidden">
+					@progress.Progress(progress.Props{
+						Value:     0,
+						Label:     "Uploading...",
+						ShowValue: true,
+					})
+					<div id="uploadSpeed" class="text-sm text-gray-500 mt-2"></div>
+				</div>
+				<div id="toast"></div>
+				<div class="flex justify-between items-center mb-4">
+					<h2 class="text-xl font-semibold">Files</h2>
+					@button.Button(button.Props{HxGet: "/files", HxTarget: "#files", HxTrigger: "click"}) {
+						Refresh 
+					}
+				</div>
+				<div id="files" hx-get="/files" hx-trigger="load" hx-swap="innerHTML">
+					<p>Loading files...</p>
+				</div>
+			</div>
+		</div>
+		<script>
+		// Drag and Drop Events
+		document.getElementById('dropzone').addEventListener('click', () => document.getElementById('fileInput').click());
+		document.getElementById('dropzone').addEventListener('dragover', e => { e.preventDefault(); e.target.classList.add('bg-gray-200'); });
+		document.getElementById('dropzone').addEventListener('dragleave', e => e.target.classList.remove('bg-gray-200'));
+		document.getElementById('dropzone').addEventListener('drop', e => {
+			e.preventDefault();
+			document.getElementById('fileInput').files = e.dataTransfer.files;
+			UploadFile({ preventDefault: () => {} });
+		});
+
+		function UploadFile(event) {
+			event.preventDefault();
+			const fileInput = document.getElementById('fileInput') || document.getElementById('fileSelector');
+			if (!fileInput.files.length) {
+				alert('Please select a file.');
+				return;
+			}
+
+			const progressContainer = document.getElementById('progressContainer');
+			progressContainer.classList.remove('hidden');
+			const progressIndicator = progressContainer.querySelector('[data-progress-indicator]');
+			const percentText = progressContainer.querySelector('.flex.justify-between span:nth-child(2)');
+			const statusText = progressContainer.querySelector('.flex.justify-between span:nth-child(1)');
+			const speedDisplay = document.getElementById('uploadSpeed');
+
+			let startTime = new Date().getTime();
+			let lastLoaded = 0;
+
+			const formData = new FormData();
+			for (let file of fileInput.files) {
+				formData.append('file', file);
+			}
+
+			const request = new XMLHttpRequest();
+			request.upload.addEventListener('progress', function(e) {
+				if (e.lengthComputable) {
+					const percent = Math.round((e.loaded / e.total) * 100);
+					const elapsedTime = (new Date().getTime() - startTime) / 1000;
+					const speed = ((e.loaded - lastLoaded) / 1024 / elapsedTime).toFixed(2);
+					const remainingTime = ((e.total - e.loaded) / (e.loaded / elapsedTime)).toFixed(1);
+					lastLoaded = e.loaded;
+					progressIndicator.style.width = percent + '%';
+					percentText.textContent = percent + '%';
+					speedDisplay.textContent = `Speed: ${speed} KB/s | Remaining: ${remainingTime}s`;
+				}
+			});
+
+			request.onload = function () {
+				const toast = document.getElementById('toast');
+				if (request.status === 200) {
+					statusText.textContent = 'Upload Complete';
+					progressIndicator.style.width = '100%';
+					percentText.textContent = '100%';
+					toast.innerHTML = `<div class="p-3 rounded border bg-green-100 text-green-800">${request.responseText}</div>`;
+					fileInput.value = '';
+					htmx.ajax("GET", "/files", { target: "#files" });
+					setTimeout(() => {
+						progressContainer.classList.add('hidden');
+						speedDisplay.textContent = '';
+						toast.innerHTML = '';
+					}, 5000);
+				} else {
+					toast.innerHTML = `<div class="p-3 rounded bg-red-100 text-red-800 border border-red-300">Upload failed with status ${request.status}</div>`;
+				}
+			};
+
+			request.onerror = function () {
+				const toast = document.getElementById('toast');
+				toast.innerHTML = `<div class="p-3 rounded bg-red-100 text-red-800 border border-red-300">Network error. Please check your connection.</div>`;
+			};
+
+			request.open('POST', '/upload', true);
+			request.timeout = 60000;
+			request.send(formData);
+		}
+		</script>
+	}
+}

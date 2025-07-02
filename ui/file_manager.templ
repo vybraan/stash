@@ -1,0 +1,141 @@
+package ui
+
+import (
+	"github/com/vybraan/stash/ui/layouts"
+	"github/com/vybraan/stash/components/form"
+	"github/com/vybraan/stash/components/input"
+	"github/com/vybraan/stash/components/button"
+	"github/com/vybraan/stash/components/progress"
+)
+
+//templ FileManager(currentPath string) {
+templ FileManager() {
+	@layouts.Base() {
+		<div class="min-h-screen w-full font-sans p-1 md:p-4">
+			<!-- Top Bar -->
+			<div class="flex justify-between items-center p-4 rounded-lg shadow mb-6">
+				<div class="flex items-center gap-4">
+					@button.Button(button.Props{Href: "/", Variant: button.VariantSecondary}) {
+						Home 
+					}
+					<span class="text-gray-500">Current Path: { "/" }</span>
+					<form hx-get="/search" hx-target="#files" class="flex items-center gap-2">
+						@input.Input(input.Props{Type: input.TypeSearch, Name: "query", Placeholder: "Search files..."})
+						@button.Button(button.Props{Type: button.TypeSubmit, Variant: button.VariantOutline}) {
+							Search 
+						}
+					</form>
+				</div>
+				<div class="flex items-center gap-2">
+					<select id="sort" name="sort" hx-get="/sort" hx-target="#files" hx-trigger="change" class="border p-1 rounded">
+						<option value="name">Sort by Name</option>
+						<option value="size">Sort by Size</option>
+						<option value="date">Sort by Date</option>
+					</select>
+					@button.Button(button.Props{Href: "/logout", Variant: button.VariantDestructive}) {
+						Logout 
+					}
+				</div>
+			</div>
+			<!-- Upload Form -->
+			<div class="max-w-7xl mx-auto border border-border rounded-lg shadow-xl p-1 md:p-6">
+				<h1 class="text-2xl font-bold mb-6 border-b border-border pb-2">File Manager</h1>
+				<form id="uploadForm" onsubmit="UploadFile(event)" class="flex items-center gap-4 mb-4">
+					@form.Item() {
+						@input.Input(input.Props{ID: "fileInput", Name: "file", Type: input.TypeFile})
+					}
+					@button.Button(button.Props{Type: button.TypeSubmit}) {
+						Upload 
+					}
+				</form>
+				<div id="progressContainer" class="w-full max-w-xl mb-6 hidden">
+					@progress.Progress(progress.Props{Value: 0, Label: "Uploading...", ShowValue: true})
+					<div id="uploadSpeed" class="text-sm mt-2 text-gray-500"></div>
+				</div>
+				<div id="toast"></div>
+				<div class="flex justify-between items-center mb-4">
+					<h2 class="text-xl font-semibold">Uploaded Files</h2>
+					@button.Button(button.Props{HxGet: "files", HxTarget: "#files", HxTrigger: "click"}) {
+						Refresh 
+					}
+				</div>
+				<div id="files" hx-get="/files" hx-trigger="load" hx-swap="innerHTML">
+					<p>Loading files...</p>
+				</div>
+			</div>
+		</div>
+		<script>
+// Upload with speed estimation
+function UploadFile(event) {
+	event.preventDefault();
+
+	const fileInput = document.getElementById('fileInput');
+	if (!fileInput.files.length) {
+		alert('Please select a file.');
+		return;
+	}
+
+	const file = fileInput.files[0];
+	const formData = new FormData();
+	formData.append('file', file);
+
+	const progressContainer = document.getElementById('progressContainer');
+	progressContainer.classList.remove('hidden');
+	const progressIndicator = progressContainer.querySelector('[data-progress-indicator]');
+	const percentText = progressContainer.querySelector('.flex.justify-between span:nth-child(2)');
+	const statusText = progressContainer.querySelector('.flex.justify-between span:nth-child(1)');
+	const uploadSpeedDisplay = document.getElementById('uploadSpeed');
+
+	progressIndicator.style.width = '0%';
+	percentText.textContent = '0%';
+	statusText.textContent = 'Uploading...';
+	uploadSpeedDisplay.textContent = '';
+
+	let startTime = Date.now();
+
+	const request = new XMLHttpRequest();
+	request.upload.addEventListener('progress', function(e) {
+		if (e.lengthComputable) {
+			const percent = Math.round((e.loaded / e.total) * 100);
+			const elapsed = (Date.now() - startTime) / 1000;
+			const speed = (e.loaded / 1024 / 1024) / elapsed; // MB/s
+			const remaining = ((e.total - e.loaded) / (speed * 1024 * 1024)) || 0;
+
+			progressIndicator.style.width = percent + '%';
+			percentText.textContent = percent + '%';
+			uploadSpeedDisplay.textContent = `Speed: ${speed.toFixed(2)} MB/s | Remaining: ${remaining.toFixed(1)} s`;
+		}
+	});
+
+	request.onload = function() {
+		const toast = document.getElementById('toast');
+
+		if (request.status === 200) {
+			statusText.textContent = 'Upload Complete';
+			progressIndicator.style.width = '100%';
+			percentText.textContent = '100%';
+
+			toast.innerHTML = `<div id="ttt" data-toast data-duration=500 class="p-3 z-50 fixed pointer-events-auto p-4  opacity-0 transform transition-all duration-300 ease-out rounded border border-border top-0 right-0 translate-y-4 w-full md:max-w-[420px]"><div class="w-full bg-background rounded-lg shadow-xs border pt-5 pb-4 px-4 flex items-center justify-center relative overflow-hidden"></div>success</div>`;
+			fileInput.value = '';
+			htmx.ajax("GET", "/files", { target: "#files" });
+
+			setTimeout(() => {
+				progressContainer.classList.add('hidden');
+				toast.innerHTML = '';
+			}, 5000);
+		} else {
+			toast.innerHTML = `<div data-toast data-duration="500" class="p-3 rounded bg-red-100 text-red-800 border border-red-300">Upload failed with status ${request.status}</div>`;
+		}
+	};
+
+	request.onerror = function() {
+		document.getElementById('toast').innerHTML = `<div class="p-3 rounded bg-red-100 text-red-800 border border-red-300">Network error</div>`;
+	};
+
+	request.open('POST', '/upload', true);
+	request.timeout = 60000;
+	request.send(formData);
+}
+</script>
+	}
+}

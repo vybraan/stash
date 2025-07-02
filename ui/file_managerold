@@ -1,0 +1,43 @@
+package ui
+
+import "github/com/vybraan/snare/ui/layouts"
+
+// file_manager.templ
+templ FileManager() {
+	@layouts.Base() {
+		<div class="min-h-screen bg-gray-100 p-8">
+			<div class="max-w-4xl mx-auto bg-white rounded-2xl shadow-lg p-6">
+				<h1 class="text-2xl font-bold mb-6">File Manager</h1>
+				<!-- Upload Form -->
+				<form
+					hx-post="/upload"
+					hx-target="#toast"
+					hx-swap="innerHTML"
+					hx-encoding="multipart/form-data"
+					class="flex items-center gap-4 mb-8"
+				>
+					<input type="file" name="file" class="file-input file-input-bordered file-input-primary w-full max-w-xs"/>
+					<button type="submit" class="btn btn-primary">Upload</button>
+				</form>
+				<!-- Toast for Notifications -->
+				<div id="toast" class="mb-6"></div>
+				<!-- Files List -->
+				<div class="flex justify-between items-center mb-4">
+					<h2 class="text-xl font-semibold">Uploaded Files</h2>
+					<button
+						hx-get="/files"
+						hx-target="#files"
+						hx-trigger="click"
+						class="btn btn-outline"
+					>
+						Refresh
+					</button>
+				</div>
+				<div id="files" hx-get="/files" hx-trigger="load" hx-swap="innerHTML">
+					<!-- Files will load here -->
+					<p>Loading files...</p>
+				</div>
+			</div>
+		</div>
+	}
+}

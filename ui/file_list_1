@@ -1,0 +1,34 @@
+package ui
+
+import "os"
+import "fmt"
+import "github/com/vybraan/snare/components/button"
+
+templ FileList(files []os.DirEntry) {
+	<ul class="space-y-2">
+		for _, file := range files {
+			<li class="flex justify-between items-center p-2 rounded">
+				<span>
+					{ fmt.Sprintf("%s", file.Name()) }
+				</span>
+				<div class="flex gap-2">
+					@button.Button(button.Props{
+						Variant: button.VariantOutline,
+						Target:  "_blank",
+						Href:    fmt.Sprintf("/download/%s", file.Name()),
+					}) {
+						Download
+					}
+					@button.Button(button.Props{
+						Variant:  button.VariantDestructive,
+						HxDelete: fmt.Sprintf("/delete/%s", file.Name()),
+						HxTarget: "#files",
+						HxSwap:   "innerHTML",
+					}) {
+						Delete
+					}
+				</div>
+			</li>
+		}
+	</ul>
+}

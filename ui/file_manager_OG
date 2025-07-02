@@ -1,0 +1,110 @@
+package ui
+
+import "github/com/vybraan/snare/ui/layouts"
+import "github/com/vybraan/snare/components/form"
+import "github/com/vybraan/snare/components/input"
+import "github/com/vybraan/snare/components/button"
+import "github/com/vybraan/snare/components/progress"
+
+templ FileManager() {
+	@layouts.Base() {
+		<div class="min-h-screen w-full  font-mono p-8">
+			<div class="max-w-4xl mx-auto border border-border rounded-lg shadow-xl p-6 ">
+				<h1 class="text-3xl font-bold mb-6 border-b border-border pb-2">File Manager</h1>
+				<!-- Upload Form with Progress -->
+				<form
+					id="uploadForm"
+					onsubmit="UploadFile(event)"
+					class="flex items-center gap-4 mb-4"
+				>
+					@form.Item() {
+						@input.Input(input.Props{ID: "fileInput", Name: "file", Type: input.TypeFile})
+					}
+					@button.Button(button.Props{Type: button.TypeSubmit}) {
+						Upload
+					}
+				</form>
+				<!-- Upload Progress Bar using templUI -->
+				<div id="progressContainer" class="w-full max-w-xl mb-6 hidden">
+					@progress.Progress(progress.Props{
+						Value:     0,
+						Label:     "Uploading...",
+						ShowValue: true,
+					})
+				</div>
+				<!-- Toast for Notifications -->
+				<div id="toast"></div>
+				<!-- Files List -->
+				<div class="flex justify-between items-center mb-4">
+					<h2 class="text-xl font-semibold">Uploaded Files</h2>
+					@button.Button(button.Props{HxGet: "files", HxTarget: "#files", HxTrigger: "click"}) {
+						Refresh
+					}
+				</div>
+				<div id="files" hx-get="/files" hx-trigger="load" hx-swap="innerHTML">
+					<p>Loading files...</p>
+				</div>
+			</div>
+		</div>
+		<script>
+
+//document.getElementById('progressBar').
+
+function UploadFile(event) {
+event.preventDefault()
+    var formdata = new FormData();
+
+    fileInput = document.getElementById('fileInput');
+    if (!fileInput.files.length) {
+        alert('Please select a file to upload.');
+        return;
+    }
+
+    // Show progress Bar
+    document.getElementById('progressContainer').classList.remove('hidden');
+
+    // Clear previous progress Bar
+        let progressIndicator = document.querySelector('#progressContainer [data-progress-indicator]');
+        let percentText = document.querySelector('#progressContainer .flex.justify-between span:nth-child(2)');
+
+            progressIndicator.style.width =  '0%';
+            percentText.textContent = '0%';
+
+
+
+    formdata.append('file', fileInput.files[0]);
+
+    var request = new XMLHttpRequest();
+
+    request.upload.addEventListener('progress', function (e) {
+        var fileSize = fileInput.files[0].size;
+        console.log(fileSize);
+
+        if (event.loaded <= fileSize) {
+            var percent = Math.round(e.loaded / fileSize * 100);
+
+                        progressIndicator.style.width = percent + '%';
+            percentText.textContent = Math.round(percent) + '%';
+        } 
+
+        if(event.loaded == event.total){
+            fileInput.value = ''; // Clear the file input after upload
+            // Update progress bar to 100%
+            document.querySelector('#progressContainer .flex.justify-between span:nth-child(1)').textContent = 'Upload Complete';
+            progressIndicator.style.width = '100%';
+            percentText.textContent = '100%';
+
+            htmx.ajax("GET", "/files", { target: "#files" });
+
+        }
+    });   
+
+    request.open('post', '/upload', true);
+    request.timeout = 45000;
+    request.send(formdata);
+
+        
+}
+    </script>
+	}
+}

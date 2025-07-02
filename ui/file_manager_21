@@ -1,0 +1,126 @@
+package ui
+
+import (
+	"github/com/vybraan/snare/ui/layouts"
+	"github/com/vybraan/snare/components/form"
+	"github/com/vybraan/snare/components/input"
+	"github/com/vybraan/snare/components/button"
+	"github/com/vybraan/snare/components/progress"
+)
+
+templ FileManager() {
+	@layouts.Base() {
+		<div class="min-h-screen w-full font-sans p-8">
+			<div class="max-w-6xl mx-auto border border-border rounded-lg shadow-xl p-6">
+				<h1 class="text-4xl font-bold mb-6 border-b border-border pb-2">File Manager</h1>
+				<!-- Search Bar -->
+				<div class="mb-4 flex items-center justify-between">
+					<input type="text" placeholder="Search files..." class="input w-1/2 p-2 border rounded" hx-get="/files" hx-trigger="keyup changed delay:500ms" hx-target="#files" name="search"/>
+				</div>
+				<!-- Upload Form with Progress -->
+				<form id="uploadForm" onsubmit="UploadFile(event)" class="flex items-center gap-4 mb-6">
+					@form.Item() {
+						@input.Input(input.Props{ID: "fileInput", Name: "file", Type: input.TypeFile})
+					}
+					@button.Button(button.Props{Type: button.TypeSubmit}) {
+						Upload
+					}
+				</form>
+				<!-- Upload Progress Bar -->
+				<div id="progressContainer" class="w-full max-w-xl mb-6 hidden">
+					@progress.Progress(progress.Props{
+						Value:     0,
+						Label:     "Uploading...",
+						ShowValue: true,
+					})
+				</div>
+				<!-- Toast for Notifications -->
+				<div id="toast"></div>
+				<!-- Files List -->
+				<div class="flex justify-between items-center mb-4">
+					<h2 class="text-2xl font-semibold">Uploaded Files</h2>
+					@button.Button(button.Props{HxGet: "/files", HxTarget: "#files", HxTrigger: "click"}) {
+						Refresh
+					}
+				</div>
+				<div id="files" hx-get="/files" hx-trigger="load" hx-swap="innerHTML">
+					<p>Loading files...</p>
+				</div>
+			</div>
+		</div>
+		<script>
+		function UploadFile(event) {
+			event.preventDefault();
+
+			const fileInput = document.getElementById('fileInput');
+			if (!fileInput.files.length) {
+				alert('Please select a file to upload.');
+				return;
+			}
+
+			const progressContainer = document.getElementById('progressContainer');
+			progressContainer.classList.remove('hidden');
+
+			const progressIndicator = progressContainer.querySelector('[data-progress-indicator]');
+			const percentText = progressContainer.querySelector('.flex.justify-between span:nth-child(2)');
+			const statusText = progressContainer.querySelector('.flex.justify-between span:nth-child(1)');
+
+			progressIndicator.style.width = '0%';
+			percentText.textContent = '0%';
+			statusText.textContent = 'Uploading...';
+
+			const formData = new FormData();
+			formData.append('file', fileInput.files[0]);
+
+			const request = new XMLHttpRequest();
+			const startTime = new Date().getTime();
+
+			request.upload.addEventListener('progress', function(e) {
+				if (e.lengthComputable) {
+					const percent = Math.round((e.loaded / e.total) * 100);
+					progressIndicator.style.width = percent + '%';
+					percentText.textContent = percent + '%';
+
+					const elapsedTime = (new Date().getTime() - startTime) / 1000;
+					const uploadSpeed = e.loaded / elapsedTime;
+					const timeRemaining = (e.total - e.loaded) / uploadSpeed;
+					statusText.textContent = `Uploading... ~${Math.ceil(timeRemaining)}s remaining`;
+				}
+			});
+
+			request.onload = function () {
+				const toast = document.getElementById('toast');
+
+				if (request.status === 200) {
+					statusText.textContent = 'Upload Complete';
+					progressIndicator.style.width = '100%';
+					percentText.textContent = '100%';
+
+					toast.innerHTML = `<div class='p-3 rounded border border-border bg-green-100 text-green-800'>${request.responseText}</div>`;
+
+					fileInput.value = '';
+
+					htmx.ajax("GET", "/files", { target: "#files" });
+
+					setTimeout(() => {
+						progressContainer.classList.add('hidden');
+						toast.innerHTML = '';
+					}, 5000);
+
+				} else {
+					toast.innerHTML = `<div class='p-3 rounded bg-red-100 text-red-800 border border-red-300'>Upload failed with status ${request.status}. Please try again.</div>`;
+				}
+			};
+
+			request.onerror = function () {
+				const toast = document.getElementById('toast');
+				toast.innerHTML = `<div class='p-3 rounded bg-red-100 text-red-800 border border-red-300'>Network error. Please try again.</div>`;
+			};
+
+			request.open('POST', '/upload', true);
+			request.timeout = 45000;
+			request.send(formData);
+		}
+		</script>
+	}
+}

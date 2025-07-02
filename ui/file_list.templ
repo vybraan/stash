@@ -1,0 +1,66 @@
+package ui
+
+import "os"
+import "github/com/vybraan/stash/components/icon"
+import "fmt"
+import "github/com/vybraan/stash/components/button"
+
+templ FileList(cf string, files []os.DirEntry) {
+	<ul class="space-y-2">
+		for _, file := range files {
+			<li class="flex justify-between items-center p-2 rounded">
+				<div class="flex items-center gap-3">
+					if file.IsDir() {
+						@button.Button(button.Props{Variant: button.VariantLink, Class: "px-0 space-x-2 font-semibold text-md", HxTrigger: "click", HxGet: fmt.Sprintf("/files?folder=%s/%s", cf, file.Name()), HxTarget: "#files"}) {
+							@icon.Folder(icon.Props{Size: 20})
+							<span class="text-foreground">{ fmt.Sprintf("%s/", file.Name()) }</span>
+						}
+					} else {
+						<span class="flex space-x-2 font-semibold text-primary">
+							@icon.File(icon.Props{Size: 20})
+							<span class="text-foreground">{ fmt.Sprintf("%s", file.Name()) }</span>
+						</span>
+					}
+					<span class=" text-sm">{ extractFileInfo(file) } </span>
+				</div>
+				if !file.IsDir() {
+					<div class="flex gap-2">
+						@button.Button(button.Props{Variant: button.VariantOutline, Href: fmt.Sprintf("/download/%s", file.Name()), Target: "_blank"}) {
+							Download 
+						}
+						@button.Button(button.Props{Variant: button.VariantDestructive, HxDelete: fmt.Sprintf("/delete/%s", file.Name()), HxTarget: "#files", HxSwap: "innerHTML"}) {
+							Delete 
+						}
+						@button.Button(button.Props{Variant: button.VariantSecondary, HxGet: fmt.Sprintf("/preview/%s", file.Name()), HxTarget: "#modal", HxSwap: "innerHTML", Disabled: true}) {
+							Preview 
+						}
+					</div>
+				} else {
+					@button.Button(button.Props{Variant: button.VariantDestructive, HxDelete: fmt.Sprintf("/delete/%s", file.Name()), HxTarget: "#files", HxSwap: "innerHTML"}) {
+						Delete 
+					}
+				}
+			</li>
+		}
+	</ul>
+}
+
+func extractFileInfo(file os.DirEntry) string {
+	info, err := file.Info()
+	if err != nil {
+		return ""
+	}
+	return fmt.Sprintf("%s • %s", formatFileSize(info.Size()), info.ModTime().Format("Jan 02, 2006 15:04"))
+}
+
+func formatFileSize(size int64) string {
+	if size < 1024 {
+		return fmt.Sprintf("%d B", size)
+	} else if size < 1024*1024 {
+		return fmt.Sprintf("%.1f KB", float64(size)/1024)
+	} else if size < 1024*1024*1024 {
+		return fmt.Sprintf("%.1f MB", float64(size)/(1024*1024))
+	} else {
+		return fmt.Sprintf("%.1f GB", float64(size)/(1024*1024*1024))
+	}
+}

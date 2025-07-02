@@ -1,0 +1,27 @@
+package layouts
+
+import "github/com/vybraan/stash/components/label"
+import "github/com/vybraan/stash/components/selectbox"
+import "github/com/vybraan/stash/components/popover"
+import "github/com/vybraan/stash/components/toast"
+import "github/com/vybraan/stash/components/progress"
+
+templ Base() {
+	<html lang="en">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>Authentication</title>
+			<link rel="stylesheet" href="/assets/css/output.css"/>
+			<script src="/assets/js/htmx.min.js" defer></script>
+			@label.Script()
+			@selectbox.Script()
+			@toast.Script()
+			@progress.Script()
+			@popover.Script()
+		</head>
+		<body class="w-full h-full  dark flex flex-col items-center justify-center">
+			{ children... }
+		</body>
+	</html>
+}
